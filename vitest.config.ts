@@ -10,6 +10,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL('./packages/pg/src/kysely.ts', import.meta.url)),
       },
       {
+        find: /^@millstream\/mysql\/kysely$/,
+        replacement: fileURLToPath(new URL('./packages/mysql/src/kysely.ts', import.meta.url)),
+      },
+      {
         find: /^@millstream\/(.*)$/,
         replacement: fileURLToPath(new URL('./packages/$1/src/index.ts', import.meta.url)),
       },

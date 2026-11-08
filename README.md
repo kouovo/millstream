@@ -10,14 +10,15 @@ Messaging toolkit for Node.js with transactional outbox, ordered PostgreSQL log,
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | [`@millstream/core`](packages/core)           | `Message` (Ack/Nack), `Publisher`/`Subscriber`, `Router` + middlewares / plugins / decorators, in-memory Pub/Sub, requeuer |
 | [`@millstream/pg`](packages/pg)               | PostgreSQL (node-postgres / postgres.js / Kysely): xid8-ordered log, `SKIP LOCKED` queue, outbox, inbox, delayed requeue   |
+| [`@millstream/mysql`](packages/mysql)         | MySQL 8 (mysql2 / Kysely): `SKIP LOCKED` queue, outbox, inbox, delayed requeue                                             |
 | [`@millstream/kafka`](packages/kafka)         | Kafka on `@platformatic/kafka` ≥ 2.3: commit on ack, per-partition ordering and parallelism                                |
 | [`@millstream/bullmq`](packages/bullmq)       | BullMQ (Redis): jobId = uuid dedup, native delays, Nack → redeliver or BullMQ attempts/backoff + failed set                |
 | [`@millstream/cqrs`](packages/cqrs)           | Typed `EventBus` / `EventProcessor`: explicit event names, Standard Schema validation, any transport underneath            |
 | [`@millstream/forwarder`](packages/forwarder) | Outbox forwarder: envelope publisher + relay handler to any broker                                                         |
 | [`@millstream/test-kit`](packages/test-kit)   | Universal Pub/Sub contract tests (works with vitest, `node:test`, jest…) for your own adapters                             |
 
-Requires Node.js ≥ 22, plus PostgreSQL ≥ 13 for `@millstream/pg`, Kafka ≥ 3.5 for `@millstream/kafka`, and
-Redis (BullMQ 5) for `@millstream/bullmq`.
+Requires Node.js ≥ 22, plus PostgreSQL ≥ 13 for `@millstream/pg`, MySQL ≥ 8.0 for `@millstream/mysql`, Kafka ≥ 3.5
+for `@millstream/kafka`, and Redis (BullMQ 5) for `@millstream/bullmq`.
 
 ## Quick look
 
@@ -61,7 +62,7 @@ await router.run(AbortSignal.timeout(60_000)); // or router.close() on SIGTERM
 
 - **At-least-once by default.** The Router publishes a handler's output first and acks the input after, so a crash
   between the two redelivers the input. Exactly-once _effects_ only hold for writes that go through
-  `txFromContext()` while consuming from `@millstream/pg`.
+  `txFromContext()` while consuming from `@millstream/pg` or `@millstream/mysql`.
 - **The PG log subscriber never skips a late commit.** `bigserial` order ≠ commit order. Progress is tracked as
   `(transaction_id, offset)`, and the subscriber reads only rows from transactions older than `pg_snapshot_xmin`. The
   cost is that a long transaction _anywhere_ in the instance delays consumption, so monitor `pg_stat_activity`.
@@ -84,7 +85,8 @@ await router.run(AbortSignal.timeout(60_000)); // or router.close() on SIGTERM
   through a connection that is already back in the pool.
 - **Reliable inbox dedup.** `inbox()` (transactional) replaces Watermill's in-memory, payload-hash Deduplicator.
 - **`LISTEN/NOTIFY` wake-ups** on top of polling (`PgNotifier`). They are only a hint; polling still runs.
-- **No MySQL log-type subscriber.** It needs serializable locking reads that block producers. Use the queue type or CDC.
+- **No MySQL log-type subscriber.** It needs serializable locking reads that block producers. `@millstream/mysql` is
+  queue-type only (`SKIP LOCKED`, delete on ack); use it as an outbox and fan out in the broker, or use CDC.
 
 ## Development
 
@@ -92,7 +94,7 @@ Uses pnpm workspaces, vitest, oxlint + oxfmt, and changesets.
 
 ```sh
 pnpm install
-pnpm db:up            # PostgreSQL 16 :55432, Redis 7 :56379, Kafka 4.1 (KRaft) :59092 (docker compose)
+pnpm db:up            # PostgreSQL 16 :55432, MySQL 8.4 :53306, Redis 7 :56379, Kafka 4.1 (KRaft) :59092 (docker compose)
 pnpm check            # fmt:check + lint + typecheck + vitest (runs against src/)
 pnpm build            # tsc → packages/*/dist
 pnpm test:node        # contract suite on the built dist with plain `node --test`
