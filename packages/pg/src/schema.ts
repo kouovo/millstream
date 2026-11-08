@@ -87,6 +87,7 @@ export function inboxStatements(): string[] {
   processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (consumer, uuid)
 )`,
+    `CREATE INDEX IF NOT EXISTS ${q('millstream_inbox_processed_at')} ON ${tables.inbox} (processed_at)`,
   ];
 }
 

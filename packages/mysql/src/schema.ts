@@ -36,7 +36,7 @@ export function queueTopicStatements(topic: string): string[] {
   payload LONGBLOB NOT NULL,
   metadata JSON NOT NULL,
   delayed_until DATETIME(6) NULL,
-  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+  created_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6))
 ) ENGINE=InnoDB`,
   ];
 }
@@ -46,8 +46,9 @@ export function inboxStatements(): string[] {
     `CREATE TABLE IF NOT EXISTS ${tables.inbox} (
   consumer VARCHAR(255) NOT NULL,
   uuid VARCHAR(255) NOT NULL,
-  processed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (consumer, uuid)
+  processed_at DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+  PRIMARY KEY (consumer, uuid),
+  KEY millstream_inbox_processed_at (processed_at)
 ) ENGINE=InnoDB`,
   ];
 }

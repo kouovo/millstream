@@ -27,6 +27,7 @@ import {
   inbox,
   initializeSchema,
   pgDelayedRequeuer,
+  pruneInbox,
   toSqlDriver,
   withTransaction,
 } from '../src/index.js';
@@ -412,6 +413,26 @@ for (const make of [nodePostgres, postgresJs, kysely]) {
         await eventually(() => runs === 2);
         await delay(300);
         expect(runs).toBe(2);
+      });
+
+      it('pruneInbox deletes old records in batches, optionally per consumer', async () => {
+        const c1 = `prune_${newTopic()}`;
+        const c2 = `prune_${newTopic()}`;
+        const insert = (consumer: string, uuid: string, ageSql: string) =>
+          driver.query(
+            `INSERT INTO millstream_inbox (consumer, uuid, processed_at) VALUES ($1, $2, now() - ${ageSql})`,
+            [consumer, uuid],
+          );
+        for (let i = 0; i < 5; i++) await insert(c1, `old${i}`, "interval '2 hours'");
+        await insert(c1, 'fresh', "interval '1 second'");
+        await insert(c2, 'old', "interval '2 hours'");
+
+        expect(await pruneInbox(driver, { olderThanMs: 3_600_000, consumer: c1, batchSize: 2 })).toBe(5);
+        expect(await count('SELECT count(*) AS n FROM millstream_inbox WHERE consumer = $1', [c1])).toBe(1); // 'fresh' kept
+        expect(await count('SELECT count(*) AS n FROM millstream_inbox WHERE consumer = $1', [c2])).toBe(1); // other consumer untouched
+        expect(await pruneInbox(driver, { olderThanMs: 3_600_000 })).toBeGreaterThanOrEqual(1);
+        expect(await count('SELECT count(*) AS n FROM millstream_inbox WHERE consumer = $1', [c2])).toBe(0);
+        await expect(pruneInbox(driver, { olderThanMs: 0 })).rejects.toThrow(/olderThanMs/);
       });
 
       it('inbox opens its own tx for non-SQL subscribers', async () => {
