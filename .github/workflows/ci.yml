@@ -29,6 +29,15 @@ jobs:
         ports: ['56379:6379']
         options: >-
           --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: millstream
+        ports: ['53306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pmysql --silent" --health-interval 2s
+          --health-timeout 3s --health-retries 60
       kafka:
         image: apache/kafka:4.1.0
         ports: ['59092:9092']
@@ -50,6 +59,7 @@ jobs:
           --health-interval 5s --health-timeout 10s --health-retries 30
     env:
       PG_URL: postgres://postgres:postgres@localhost:55432/postgres
+      MYSQL_URL: mysql://root:mysql@localhost:53306/millstream
       KAFKA_BROKERS: localhost:59092
       REDIS_URL: redis://localhost:56379
     steps:
@@ -66,7 +76,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  # The shipped dist on every supported Node × the oldest/newest supported PostgreSQL (+ Kafka).
+  # The shipped dist on every supported Node × the oldest/newest supported PostgreSQL (+ MySQL 8.0, Kafka).
   # Plain `node --test`: no TS loader, no vitest — exactly what consumers run.
   node-compat:
     name: dist on node ${{ matrix.node }} · pg ${{ matrix.postgres }} · kafka
@@ -89,6 +99,15 @@ jobs:
         ports: ['56379:6379']
         options: >-
           --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
+      mysql:
+        image: mysql:8.0 # minimum: SKIP LOCKED
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: millstream
+        ports: ['53306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pmysql --silent" --health-interval 2s
+          --health-timeout 3s --health-retries 60
       kafka:
         image: apache/kafka:4.1.0
         ports: ['59092:9092']
@@ -110,6 +129,7 @@ jobs:
           --health-interval 5s --health-timeout 10s --health-retries 30
     env:
       PG_URL: postgres://postgres:postgres@localhost:55432/postgres
+      MYSQL_URL: mysql://root:mysql@localhost:53306/millstream
       KAFKA_BROKERS: localhost:59092
       REDIS_URL: redis://localhost:56379
     steps:
