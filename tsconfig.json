@@ -6,6 +6,7 @@
     // Dev-only: resolve sibling packages to their TS sources. Published packages only expose ./dist.
     "paths": {
       "@millstream/pg/kysely": ["./packages/pg/src/kysely.ts"],
+      "@millstream/mysql/kysely": ["./packages/mysql/src/kysely.ts"],
       "@millstream/*": ["./packages/*/src/index.ts"]
     }
   },
