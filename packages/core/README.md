@@ -65,6 +65,8 @@ router.addSubscriberDecorators((subscriber, info) =>
 );
 ```
 
+For complete tracing and metrics, use [`@millstream/otel`](../otel), which is built on these hooks.
+
 Decorators apply to the Router's handlers only. Publishers you use directly, such as an `EventBus`'s or a
 `poisonQueue`'s, can be wrapped with `transformPublisher(publisher, fn)`.
 

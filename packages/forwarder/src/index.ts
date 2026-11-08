@@ -25,8 +25,10 @@ export function wrapInEnvelope(destinationTopic: string, msg: Message): Message 
     payload: msg.payload.toString('base64'),
     metadata: msg.metadata,
   };
-  // The outer message gets a fresh uuid; the original one is restored on unwrap.
-  return new Message(newUUID(), Buffer.from(JSON.stringify(env)));
+  // The outer message gets a fresh uuid; the original one is restored on unwrap. Its metadata is
+  // copied to the outer message too (never read back), so trace context / correlation ids are
+  // visible to the relay's middlewares, e.g. its consumer span continues the business trace.
+  return new Message(newUUID(), Buffer.from(JSON.stringify(env)), { ...msg.metadata });
 }
 
 export class InvalidEnvelopeError extends Error {

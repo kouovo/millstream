@@ -15,6 +15,7 @@ Messaging toolkit for Node.js with transactional outbox, ordered PostgreSQL log,
 | [`@millstream/bullmq`](packages/bullmq)       | BullMQ (Redis): jobId = uuid dedup, native delays, Nack → redeliver or BullMQ attempts/backoff + failed set                |
 | [`@millstream/cqrs`](packages/cqrs)           | Typed `EventBus` / `EventProcessor`: explicit event names, Standard Schema validation, any transport underneath            |
 | [`@millstream/forwarder`](packages/forwarder) | Outbox forwarder: envelope publisher + relay handler to any broker                                                         |
+| [`@millstream/otel`](packages/otel)           | OpenTelemetry: producer/consumer spans, trace context through message metadata, messaging metrics                          |
 | [`@millstream/test-kit`](packages/test-kit)   | Universal Pub/Sub contract tests (works with vitest, `node:test`, jest…) for your own adapters                             |
 
 Requires Node.js ≥ 22, plus PostgreSQL ≥ 13 for `@millstream/pg`, MySQL ≥ 8.0 for `@millstream/mysql`, Kafka ≥ 3.5
