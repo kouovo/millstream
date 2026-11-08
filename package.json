@@ -1,0 +1,33 @@
+{
+  "name": "millstream-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --filter './packages/*' build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:node": "node --test packages/*/node-test/*.node.mjs",
+    "lint": "oxlint --deny-warnings",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "check": "pnpm fmt:check && pnpm lint && pnpm typecheck && pnpm test",
+    "changeset": "changeset",
+    "version-packages": "changeset version && pnpm install --no-frozen-lockfile",
+    "release": "pnpm build && changeset publish",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down -v"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.4.1"
+}

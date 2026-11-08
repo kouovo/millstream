@@ -1,0 +1,52 @@
+{
+  "name": "@millstream/cqrs",
+  "version": "0.1.0",
+  "description": "Typed CQRS EventBus / EventProcessor for @millstream: explicit event names, Standard Schema validation (zod, valibot, …), any Publisher/Subscriber underneath",
+  "keywords": [
+    "cqrs",
+    "domain-events",
+    "event-bus",
+    "standard-schema",
+    "typescript",
+    "watermill"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kouovo/millstream.git",
+    "directory": "packages/cqrs"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@millstream/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@millstream/test-kit": "workspace:^",
+    "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
