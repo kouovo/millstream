@@ -24,7 +24,8 @@ Anything else can implement `SqlDriver` (`query(text, params)` plus `transaction
 - `PgQueuePublisher` / `PgQueueSubscriber`: queue type using `FOR UPDATE SKIP LOCKED`. Messages are deleted on ack,
   processed in parallel and unordered. Honours `_millstream_delayed_until`.
 - `withTransaction(driver, fn)`.
-- `inbox({ consumer })`: transactional dedup.
+- `inbox({ consumer })`: transactional dedup. `pruneInbox(driver, { olderThanMs })` deletes old records in batches; run
+  it from a scheduled job.
 - `pgDelayedRequeuer(...)`: retry later without blocking the head of the queue.
 - `PgNotifier.nodePostgres(() => new pg.Client(url))` / `PgNotifier.postgresJs(sql)`: LISTEN/NOTIFY wake-ups.
 - `initializeSchema(driver, { logTopics, queueTopics, inbox })`, or the `*SchemaSql()` helpers for your migrations.

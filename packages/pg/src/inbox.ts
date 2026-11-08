@@ -1,6 +1,6 @@
 import { type Message, type Middleware, txFromContext } from '@millstream/core';
 import { tables } from './schema.js';
-import type { SqlDriverLike } from './driver.js';
+import { type SqlDriverLike, toSqlDriver } from './driver.js';
 import { withTransaction } from './tx.js';
 
 export interface InboxOptions {
@@ -37,4 +37,45 @@ export function inbox(opts: InboxOptions): Middleware {
     if (txFromContext() || !opts.driver) return run();
     return withTransaction(opts.driver, run);
   };
+}
+
+export interface PruneInboxOptions {
+  /**
+   * Delete records processed longer ago than this. Keep it well above the longest time a
+   * duplicate can still arrive (broker retention, retries, replays), or it won't be caught.
+   */
+  olderThanMs: number;
+  /** Only this consumer's records. Default: all. */
+  consumer?: string;
+  /** Rows per DELETE, each its own short transaction. Default 10_000. */
+  batchSize?: number;
+}
+
+/**
+ * Delete old inbox records in batches (run it from a scheduled job). Returns how many were deleted.
+ * Never call it inside a business transaction.
+ */
+export async function pruneInbox(driver: SqlDriverLike, opts: PruneInboxOptions): Promise<number> {
+  const d = toSqlDriver(driver);
+  if (!(Number.isFinite(opts.olderThanMs) && opts.olderThanMs > 0)) {
+    throw new Error(`olderThanMs must be a positive number, got ${opts.olderThanMs}`);
+  }
+  const batchSize = opts.batchSize ?? 10_000;
+  const params: unknown[] = [String(Math.floor(opts.olderThanMs)), batchSize];
+  if (opts.consumer !== undefined) params.push(opts.consumer);
+  const text = `WITH deleted AS (
+  DELETE FROM ${tables.inbox} WHERE ctid = ANY(ARRAY(
+    SELECT ctid FROM ${tables.inbox}
+    WHERE processed_at < now() - $1::bigint * interval '1 millisecond'
+      ${opts.consumer !== undefined ? 'AND consumer = $3' : ''}
+    LIMIT $2::int))
+  RETURNING 1)
+SELECT count(*)::int AS n FROM deleted`;
+  let total = 0;
+  for (;;) {
+    const { rows } = await d.query(text, params);
+    const n = Number(rows[0]?.n ?? 0);
+    total += n;
+    if (n < batchSize) return total;
+  }
 }

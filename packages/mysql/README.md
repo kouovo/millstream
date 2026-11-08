@@ -32,7 +32,8 @@ Anything else can implement `MysqlDriver` (`query(text, params)` with `?` placeh
   run in parallel; unordered, no consumer groups. Each message gets its own transaction, so handler writes through
   `txFromContext()` commit atomically with the ack. Nack rolls back to a savepoint and redelivers.
 - `withTransaction(driver, fn)`.
-- `inbox({ consumer })`: transactional dedup.
+- `inbox({ consumer })`: transactional dedup. `pruneInbox(driver, { olderThanMs })` deletes old records in batches; run
+  it from a scheduled job.
 - `mysqlDelayedRequeuer(...)`: retry later without blocking the queue.
 - `initializeSchema(driver, { queueTopics, inbox })`, or the `*SchemaSql()` helpers for your migrations.
 

@@ -7,8 +7,10 @@ import {
   BullMQPublisher,
   BullMQSubscriber,
   type BullMQSubscriberOptions,
+  InvalidConsumerGroupError,
   NackedError,
   bullmqJob,
+  consumerGroupQueueName,
   toJobId,
 } from '../src/index.js';
 
@@ -20,6 +22,12 @@ const created = new Set<string>();
 const newTopic = () => {
   const t = `t${process.pid}_${Date.now() % 1e8}_${newUUID().slice(0, 8)}`;
   created.add(t);
+  return t;
+};
+/** A topic plus the queues of its consumer groups (all cleaned up after the run). */
+const groupedTopic = (...groups: string[]) => {
+  const t = newTopic();
+  for (const g of groups) created.add(consumerGroupQueueName(t, g));
   return t;
 };
 afterAll(async () => {
@@ -205,6 +213,165 @@ describe('BullMQ specifics', () => {
     await eventually(() => seen.length === 20);
     await delay(200);
     expect(seen.toSorted()).toEqual(payloads(msgs(20)).toSorted());
+  });
+
+  describe('consumer groups (fan-out)', () => {
+    it('every group gets its own copy, subscribers of one group share it', async () => {
+      const topic = groupedTopic('billing', 'email');
+      const pub = new BullMQPublisher({ connection, consumerGroups: () => ['billing', 'email'] });
+      await pub.publish(topic, ...msgs(6));
+      await pub.close();
+
+      const billing = await collect(
+        new BullMQSubscriber({ connection, ...fast, consumerGroup: 'billing' }).subscribe(topic, signal()),
+        6,
+      );
+      expect(new Set(payloads(billing))).toEqual(new Set(payloads(msgs(6))));
+
+      // Two subscribers of 'email' compete: together they see each message once.
+      const seen: string[] = [];
+      const run = () =>
+        collect(new BullMQSubscriber({ connection, ...fast, consumerGroup: 'email' }).subscribe(topic, signal()), 6, {
+          timeoutMs: 5000,
+          onMessage: (m) => {
+            seen.push(m.payload.toString());
+            m.ack();
+          },
+        }).catch(() => {});
+      void run();
+      void run();
+      await eventually(() => seen.length === 6);
+      await delay(200);
+      expect(seen.toSorted()).toEqual(payloads(msgs(6)).toSorted());
+
+      // Nothing went to the topic's shared queue.
+      const shared = new Queue(topic, { connection });
+      expect(await shared.count()).toBe(0);
+      await shared.close();
+    });
+
+    it('groups retry and fail independently (per-group job options)', async () => {
+      const topic = groupedTopic('flaky', 'ok');
+      const pub = new BullMQPublisher({
+        connection,
+        consumerGroups: () => ['flaky', 'ok'],
+        jobOptions: (_t, _m, { consumerGroup }) => ({
+          attempts: consumerGroup === 'flaky' ? 2 : 1,
+          backoff: { type: 'fixed', delay: 20 },
+        }),
+      });
+      const m = newMessage('event');
+      await pub.publish(topic, m);
+      await pub.close();
+
+      const flaky = new BullMQSubscriber({ connection, nack: 'fail', consumerGroup: 'flaky' });
+      const failedDeliveries = await collect(flaky.subscribe(topic, signal()), 2, { onMessage: (x) => void x.nack() });
+      expect(failedDeliveries.map((x) => x.uuid)).toEqual([m.uuid, m.uuid]);
+      const [ok] = await collect(
+        new BullMQSubscriber({ connection, ...fast, consumerGroup: 'ok' }).subscribe(topic, signal()),
+        1,
+      );
+      expect(ok!.uuid).toBe(m.uuid);
+
+      const flakyQueue = new Queue(consumerGroupQueueName(topic, 'flaky'), { connection });
+      await eventually(async () => (await flakyQueue.getFailedCount()) === 1);
+      await flakyQueue.close();
+    });
+
+    it('a repeated publish (e.g. forwarder retry) is deduplicated per group', async () => {
+      const topic = groupedTopic('a', 'b');
+      const pub = new BullMQPublisher({ connection, consumerGroups: () => ['a', 'b'] });
+      const m = newMessage('once');
+      await pub.publish(topic, m);
+      await pub.publish(topic, m.copy());
+      await pub.close();
+      for (const g of ['a', 'b']) {
+        const q = new Queue(consumerGroupQueueName(topic, g), { connection });
+        expect(await q.count()).toBe(1);
+        await q.close();
+      }
+    });
+
+    it('[] means no consumers (nothing added); undefined keeps the shared queue', async () => {
+      const none = newTopic();
+      const shared = newTopic();
+      const pub = new BullMQPublisher({
+        connection,
+        consumerGroups: (t) => (t === none ? [] : undefined),
+      });
+      await pub.publish(none, newMessage('dropped'));
+      await pub.publish(shared, newMessage('kept'));
+      await pub.close();
+      const qNone = new Queue(none, { connection });
+      expect(await qNone.count()).toBe(0);
+      await qNone.close();
+      const [got] = await collect(new BullMQSubscriber({ connection, ...fast }).subscribe(shared, signal()), 1);
+      expect(got!.payload.toString()).toBe('kept');
+    });
+
+    it('rejects group names BullMQ cannot use', () => {
+      expect(() => consumerGroupQueueName('t', '')).toThrow(InvalidConsumerGroupError);
+      expect(() => new BullMQSubscriber({ connection, consumerGroup: 'a:b' })).toThrow(InvalidConsumerGroupError);
+    });
+
+    it('forwarder relays an outbox into every group', async () => {
+      const topic = groupedTopic('projection', 'notify');
+      const outbox = new MemoryPubSub();
+      const router = new Router();
+      routers.push(router);
+      const pub = new BullMQPublisher({ connection, consumerGroups: () => ['projection', 'notify'] });
+      addForwarder(router, { subscriber: outbox, publisher: pub, forwarderTopic: 'outbox' });
+      void router.run();
+      await router.running;
+      const original = newMessage('todo-completed', { correlation_id: 'c1' });
+      await new ForwarderPublisher(outbox, 'outbox').publish(topic, original);
+      for (const consumerGroup of ['projection', 'notify']) {
+        const [m] = await collect(
+          new BullMQSubscriber({ connection, ...fast, consumerGroup }).subscribe(topic, signal()),
+          1,
+        );
+        expect(m!.equals(original)).toBe(true);
+      }
+      await outbox.close();
+      await pub.close();
+    });
+  });
+
+  it("a middleware can skip BullMQ's remaining attempts for a permanent error (job.discard())", async () => {
+    const topic = newTopic();
+    const pub = new BullMQPublisher({ connection, jobOptions: () => ({ attempts: 5 }) });
+    await pub.publish(topic, newMessage('invalid'));
+    await pub.close();
+    class ValidationError extends Error {}
+    const router = new Router();
+    routers.push(router);
+    let calls = 0;
+    router.addConsumerHandler({
+      name: 'permanent',
+      subscribeTopic: topic,
+      subscriber: new BullMQSubscriber({ connection, nack: 'fail' }),
+      middlewares: [
+        (next) => async (msg) => {
+          try {
+            return await next(msg);
+          } catch (e) {
+            if (e instanceof ValidationError) bullmqJob(msg)?.discard();
+            throw e;
+          }
+        },
+      ],
+      handler: () => {
+        calls++;
+        throw new ValidationError('never valid');
+      },
+    });
+    void router.run();
+    await router.running;
+    const q = new Queue(topic, { connection });
+    await eventually(async () => (await q.getFailedCount()) === 1);
+    await delay(200);
+    expect(calls).toBe(1);
+    await q.close();
   });
 
   it('forwarder relays an outbox to BullMQ', async () => {

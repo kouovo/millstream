@@ -13,6 +13,7 @@ import {
   inbox,
   initializeSchema,
   mysqlDelayedRequeuer,
+  pruneInbox,
   toMysqlDriver,
   withTransaction,
 } from '../src/index.js';
@@ -311,6 +312,36 @@ for (const make of [mysql2, kysely]) {
         await eventually(() => runs === 2);
         await delay(300);
         expect(runs).toBe(2);
+      });
+
+      it('pruneInbox deletes old records in batches, optionally per consumer', async () => {
+        const c1 = `prune_${newTopic()}`;
+        const c2 = `prune_${newTopic()}`;
+        const insert = (consumer: string, uuid: string, ageSeconds: number) =>
+          driver.query(
+            'INSERT INTO millstream_inbox (consumer, uuid, processed_at) VALUES (?, ?, UTC_TIMESTAMP(6) - INTERVAL ? SECOND)',
+            [consumer, uuid, ageSeconds],
+          );
+        for (let i = 0; i < 5; i++) await insert(c1, `old${i}`, 7200);
+        await insert(c1, 'fresh', 1);
+        await insert(c2, 'old', 7200);
+
+        expect(await pruneInbox(driver, { olderThanMs: 3_600_000, consumer: c1, batchSize: 2 })).toBe(5);
+        expect(await count('SELECT count(*) AS n FROM millstream_inbox WHERE consumer = ?', [c1])).toBe(1); // 'fresh' kept
+        expect(await count('SELECT count(*) AS n FROM millstream_inbox WHERE consumer = ?', [c2])).toBe(1); // other consumer untouched
+        expect(await pruneInbox(driver, { olderThanMs: 3_600_000 })).toBeGreaterThanOrEqual(1);
+        expect(await count('SELECT count(*) AS n FROM millstream_inbox WHERE consumer = ?', [c2])).toBe(0);
+        await expect(pruneInbox(driver, { olderThanMs: 0 })).rejects.toThrow(/olderThanMs/);
+      });
+
+      it('inbox records default to UTC', async () => {
+        const consumer = `utc_${newTopic()}`;
+        await driver.query('INSERT INTO millstream_inbox (consumer, uuid) VALUES (?, ?)', [consumer, 'x']);
+        const { rows } = await driver.query(
+          'SELECT ABS(TIMESTAMPDIFF(SECOND, processed_at, UTC_TIMESTAMP(6))) AS drift FROM millstream_inbox WHERE consumer = ?',
+          [consumer],
+        );
+        expect(Number(rows[0].drift)).toBeLessThan(5);
       });
 
       it('inbox opens its own tx for non-SQL subscribers', async () => {

@@ -1,5 +1,5 @@
 import { type Message, type Middleware, txFromContext } from '@millstream/core';
-import { ER_DUP_ENTRY, type MysqlDriverLike, errnoOf } from './driver.js';
+import { ER_DUP_ENTRY, type MysqlDriverLike, errnoOf, toMysqlDriver } from './driver.js';
 import { tables } from './schema.js';
 import { withTransaction } from './tx.js';
 
@@ -45,4 +45,42 @@ export function inbox(opts: InboxOptions): Middleware {
     if (txFromContext() || !opts.driver) return run();
     return withTransaction(opts.driver, run);
   };
+}
+
+export interface PruneInboxOptions {
+  /**
+   * Delete records processed longer ago than this. Keep it well above the longest time a
+   * duplicate can still arrive (broker retention, retries, replays), or it won't be caught.
+   */
+  olderThanMs: number;
+  /** Only this consumer's records. Default: all. */
+  consumer?: string;
+  /** Rows per DELETE, each its own short transaction. Default 10_000. */
+  batchSize?: number;
+}
+
+/**
+ * Delete old inbox records in batches (run it from a scheduled job). Returns how many were deleted.
+ * Never call it inside a business transaction.
+ */
+export async function pruneInbox(driver: MysqlDriverLike, opts: PruneInboxOptions): Promise<number> {
+  const d = toMysqlDriver(driver);
+  if (!(Number.isFinite(opts.olderThanMs) && opts.olderThanMs > 0)) {
+    throw new Error(`olderThanMs must be a positive number, got ${opts.olderThanMs}`);
+  }
+  const batchSize = opts.batchSize ?? 10_000;
+  const params: unknown[] = [Math.floor(opts.olderThanMs) * 1000];
+  if (opts.consumer !== undefined) params.push(opts.consumer);
+  params.push(batchSize);
+  const text = `DELETE FROM ${tables.inbox}
+WHERE processed_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND
+  ${opts.consumer !== undefined ? 'AND consumer = ?' : ''}
+LIMIT ?`;
+  let total = 0;
+  for (;;) {
+    const { rowCount } = await d.query(text, params);
+    const n = Number(rowCount ?? 0);
+    total += n;
+    if (n < batchSize) return total;
+  }
 }
