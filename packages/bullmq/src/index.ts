@@ -73,6 +73,24 @@ export function bullmqJob(msg: Message): Job | undefined {
   return jobs.get(msg);
 }
 
+// ---------------------------------------------------------------- consumer groups
+
+export class InvalidConsumerGroupError extends Error {
+  constructor(group: string) {
+    super(`invalid consumer group "${group}": must be non-empty and must not contain ":"`);
+    this.name = 'InvalidConsumerGroupError';
+  }
+}
+
+/**
+ * Queue of one consumer group: `<queue>.<group>`. A BullMQ queue is shared work, so a group
+ * (a broadcast subscription) is emulated with its own queue that the publisher writes to.
+ */
+export function consumerGroupQueueName(queue: string, group: string): string {
+  if (!group || group.includes(':')) throw new InvalidConsumerGroupError(group);
+  return `${queue}.${group}`;
+}
+
 // ---------------------------------------------------------------- Publisher
 
 export interface BullMQPublisherOptions {
@@ -80,17 +98,30 @@ export interface BullMQPublisherOptions {
   /** Queue for a topic. Default: the topic itself. */
   queueName?: (topic: string) => string;
   /**
+   * Fan-out: the consumer groups of a topic. Each message is added once per group, to the
+   * group's own queue (`consumerGroupQueueName`); a `BullMQSubscriber` with the same
+   * `consumerGroup` reads it. Every group retries / fails independently.
+   *
+   * - returns `undefined` → the topic is not grouped: one shared queue (default behaviour);
+   * - returns `[]` → the topic has no consumers: nothing is added.
+   *
+   * The list is static configuration (derive it from your handler registry): a group only
+   * receives messages published while it is listed, and an unlisted group's queue stops growing.
+   */
+  consumerGroups?: (topic: string) => readonly string[] | undefined;
+  /**
    * Native job options per message (attempts, backoff, priority, removeOnComplete, …),
    * merged over the marshaler's (jobId, delay). Like Watermill's `Generate*` hooks.
+   * `consumerGroup` is set when publishing for a group.
    */
-  jobOptions?: (topic: string, msg: Message) => JobsOptions;
+  jobOptions?: (topic: string, msg: Message, ctx: { consumerGroup?: string }) => JobsOptions;
   /** Extra queue options (prefix, defaultJobOptions, …). */
   queueOptions?: Omit<QueueOptions, 'connection'>;
   marshaler?: BullMQMarshaler;
   logger?: Logger;
 }
 
-/** One BullMQ queue per topic; `publish` is an `addBulk`. */
+/** One BullMQ queue per topic (or per topic and consumer group); `publish` is an `addBulk` per queue. */
 export class BullMQPublisher implements Publisher {
   readonly #opts: BullMQPublisherOptions;
   readonly #queues = new Map<string, Queue>();
@@ -106,16 +137,26 @@ export class BullMQPublisher implements Publisher {
     if (this.#closed) throw new PubSubClosedError('BullMQPublisher');
     if (!messages.length) return;
     const marshaler = this.#opts.marshaler ?? defaultMarshaler;
-    await this.#queue(topic).addBulk(
+    const queue = this.#opts.queueName?.(topic) ?? topic;
+    const groups = this.#opts.consumerGroups?.(topic);
+    const bulk = (consumerGroup?: string) =>
       messages.map((m) => {
         const job = marshaler.marshal(topic, m);
-        return { name: job.name, data: job.data, opts: { ...job.opts, ...this.#opts.jobOptions?.(topic, m) } };
-      }),
+        const extra = this.#opts.jobOptions?.(topic, m, { consumerGroup });
+        return { name: job.name, data: job.data, opts: { ...job.opts, ...extra } };
+      });
+    if (!groups) {
+      await this.#queue(queue).addBulk(bulk());
+      return;
+    }
+    // Not atomic across queues: a failed publish is retried as a whole, and the jobId (uuid)
+    // makes the groups that already got the message ignore the repeat.
+    await Promise.all(
+      [...new Set(groups)].map((group) => this.#queue(consumerGroupQueueName(queue, group)).addBulk(bulk(group))),
     );
   }
 
-  #queue(topic: string): Queue {
-    const name = this.#opts.queueName?.(topic) ?? topic;
+  #queue(name: string): Queue {
     let q = this.#queues.get(name);
     if (!q) {
       q = new Queue(name, { ...this.#opts.queueOptions, connection: this.#opts.connection });
@@ -145,6 +186,12 @@ export interface BullMQSubscriberOptions {
   connection: ConnectionOptions;
   /** Queue for a topic. Default: the topic itself. */
   queueName?: (topic: string) => string;
+  /**
+   * Read the queue of this consumer group (`consumerGroupQueueName`) instead of the topic's
+   * shared queue. The publisher must list the group in its `consumerGroups`.
+   * Subscribers of the same group compete for its jobs.
+   */
+  consumerGroup?: string;
   /** Jobs processed in parallel per subscription. Default 1. */
   concurrency?: number;
   /**
@@ -186,6 +233,7 @@ export class BullMQSubscriber implements Subscriber {
 
   constructor(opts: BullMQSubscriberOptions) {
     this.#opts = opts;
+    if (opts.consumerGroup !== undefined) consumerGroupQueueName('', opts.consumerGroup); // validate early
     this.#logger = opts.logger ?? nopLogger;
   }
 
@@ -202,7 +250,9 @@ export class BullMQSubscriber implements Subscriber {
   }
 
   async #run(topic: string, deliver: Deliver, stop: AbortSignal): Promise<void> {
-    const name = this.#opts.queueName?.(topic) ?? topic;
+    const queue = this.#opts.queueName?.(topic) ?? topic;
+    const group = this.#opts.consumerGroup;
+    const name = group === undefined ? queue : consumerGroupQueueName(queue, group);
     const worker = new Worker(name, null, { ...this.#opts.workerOptions, connection: this.#opts.connection });
     worker.on('error', (error) => this.#logger.error('bullmq worker error', { queue: name, error }));
     void worker.startStalledCheckTimer(); // jobs of crashed consumers go back to wait after lockDuration
