@@ -98,16 +98,6 @@ pnpm build            # tsc → packages/*/dist
 pnpm test:node        # contract suite on the built dist with plain `node --test`
 ```
 
-### Releasing
-
-1. `pnpm changeset` → pick packages and bump type → commit the generated file with your PR.
-2. On `main`, the **Release** workflow opens or updates a "chore: version packages" PR (bumped versions + CHANGELOGs).
-3. Merging that PR publishes every package whose version isn't on npm yet, with provenance, and creates tags and GitHub
-   releases.
-
-Setup: create the npm org (`millstream`), add an npm automation token as the `NPM_TOKEN` repo secret, and allow
-Actions to create PRs (Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests").
-
 ## License
 
 MIT
