@@ -1,0 +1,60 @@
+{
+  "name": "@millstream/otel",
+  "version": "0.0.0",
+  "description": "OpenTelemetry for @millstream: producer/consumer spans, trace context propagation through message metadata, messaging metrics",
+  "keywords": [
+    "metrics",
+    "opentelemetry",
+    "otel",
+    "pubsub",
+    "tracing",
+    "watermill"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kouovo/millstream.git",
+    "directory": "packages/otel"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@millstream/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@millstream/forwarder": "workspace:^",
+    "@millstream/test-kit": "workspace:^",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/context-async-hooks": "^3.1.0",
+    "@opentelemetry/core": "^3.1.0",
+    "@opentelemetry/sdk-metrics": "^3.1.0",
+    "@opentelemetry/sdk-trace": "^3.1.0"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
