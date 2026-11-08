@@ -1,9 +1,9 @@
 import type { Message } from '../message.js';
 import type { Middleware } from '../router.js';
 
-export const DELAYED_UNTIL = '_watermill_delayed_until';
-export const DELAYED_FOR = '_watermill_delayed_for';
-export const REQUEUER_RETRIES = '_watermill_requeuer_retries';
+export const DELAYED_UNTIL = '_millstream_delayed_until';
+export const DELAYED_FOR = '_millstream_delayed_for';
+export const REQUEUER_RETRIES = '_millstream_requeuer_retries';
 
 export interface DelayOnErrorOptions {
   initialIntervalMs?: number;
@@ -12,7 +12,7 @@ export interface DelayOnErrorOptions {
 }
 
 /**
- * On error, stamps `_watermill_delayed_until` (ISO) / `_watermill_delayed_for` (ms) and
+ * On error, stamps `_millstream_delayed_until` (ISO) / `_millstream_delayed_for` (ms) and
  * rethrows. Pair with an outer PoisonQueue that publishes to a delayed queue, plus a
  * Requeuer — see `pg/requeue.ts`.
  */

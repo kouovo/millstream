@@ -36,7 +36,8 @@ router.addConsumerHandler({
 - **Ordering**: strict per partition. `partitionConcurrency: n` processes up to `n` partitions in parallel, each still
   sequential; give the Router handler the same `concurrency`.
 - **New consumer groups** start at the earliest offset (`fallbackMode: 'latest'` to change).
-- **uuid & metadata** travel as headers (`_watermill_message_uuid` + one header per metadata key). Records produced by
+- **uuid & metadata** travel as headers (`_millstream_message_uuid` + one header per metadata key). To exchange
+  messages with Go Watermill services, set `uuidHeader: WATERMILL_UUID_HEADER` on both the publisher and the subscriber. Records produced by
   other clients get a deterministic uuid `kafka:<topic>:<partition>:<offset>`.
 - `kafkaInfo(msg)` returns topic / partition / offset / key / timestamp of a consumed message.
 

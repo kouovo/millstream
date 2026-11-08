@@ -50,7 +50,7 @@ const subscriber = new BullMQSubscriber({ connection, nack: 'fail' });
 - **jobId = `msg.uuid`.** BullMQ ignores a job whose id already exists, so re-publishing the same message (for example
   a forwarder retrying after a crash) is deduplicated while the earlier job is retained. Ids BullMQ rejects are escaped:
   `:` → `_`, and pure integers get an `id-` prefix.
-- **`_watermill_delayed_until`** (`withDelay(msg, ms)`, `delayOnError`) becomes a native `delay`.
+- **`_millstream_delayed_until`** (`withDelay(msg, ms)`, `delayOnError`) becomes a native `delay`.
 - **`jobOptions(topic, msg)`** passes native options through (attempts, backoff, priority, removeOnComplete, …),
   merged over jobId/delay. `workerOptions` does the same for the worker (lockDuration, limiter, prefix, …).
 - **Job data** is `{ uuid, payload (base64), metadata }`, with the job name set to the topic. Pass a custom

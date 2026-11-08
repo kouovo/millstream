@@ -61,7 +61,7 @@ export class PgPublisher implements Publisher {
 }
 
 /**
- * Queue-type publisher. `_watermill_delayed_until` metadata is copied into the
+ * Queue-type publisher. `_millstream_delayed_until` metadata is copied into the
  * indexed `delayed_until` column: the row stays invisible to subscribers until then.
  */
 export class PgQueuePublisher implements Publisher {

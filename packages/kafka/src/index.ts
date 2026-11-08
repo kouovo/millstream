@@ -24,8 +24,10 @@ import {
   type ProducerOptions,
 } from '@platformatic/kafka';
 
-/** Header carrying the message uuid (same name as Watermill's Kafka marshaler). */
-export const UUID_HEADER = '_watermill_message_uuid';
+/** Default header carrying the message uuid. */
+export const UUID_HEADER = '_millstream_message_uuid';
+/** The header Go Watermill's Kafka marshaler uses — pass it as `uuidHeader` to interoperate. */
+export const WATERMILL_UUID_HEADER = '_watermill_message_uuid';
 
 type Bytes = Buffer;
 
@@ -74,6 +76,8 @@ export interface KafkaPublisherOptions {
    * Default: none (round-robin) — set it for anything that needs per-entity ordering.
    */
   partitionKey?: (topic: string, msg: Message) => string | Buffer | undefined;
+  /** Header for the message uuid. Default `UUID_HEADER`; `WATERMILL_UUID_HEADER` to talk to Go Watermill. */
+  uuidHeader?: string;
 }
 
 /** Publishes payload as the record value; metadata + uuid as headers. */
@@ -81,12 +85,16 @@ export class KafkaPublisher implements Publisher {
   readonly #producer: Producer<Bytes, Bytes, Bytes, Bytes>;
   readonly #ownsProducer: boolean;
   readonly #partitionKey?: KafkaPublisherOptions['partitionKey'];
+  readonly #uuidHeader: Buffer;
   #closed = false;
 
   constructor(
     opts:
       | KafkaPublisherOptions
-      | { producer: Producer<Bytes, Bytes, Bytes, Bytes>; partitionKey?: KafkaPublisherOptions['partitionKey'] },
+      | ({ producer: Producer<Bytes, Bytes, Bytes, Bytes> } & Pick<
+          KafkaPublisherOptions,
+          'partitionKey' | 'uuidHeader'
+        >),
   ) {
     if ('bootstrapBrokers' in opts) {
       this.#producer = new Producer<Bytes, Bytes, Bytes, Bytes>({
@@ -104,6 +112,7 @@ export class KafkaPublisher implements Publisher {
       this.#ownsProducer = false;
     }
     this.#partitionKey = opts.partitionKey;
+    this.#uuidHeader = Buffer.from(opts.uuidHeader ?? UUID_HEADER);
   }
 
   async publish(topic: string, ...messages: Message[]): Promise<void> {
@@ -111,7 +120,7 @@ export class KafkaPublisher implements Publisher {
     if (!messages.length) return;
     const records = messages.map((m) => {
       const key = this.#partitionKey?.(topic, m);
-      const headers = new Map<Buffer, Buffer>([[Buffer.from(UUID_HEADER), Buffer.from(m.uuid)]]);
+      const headers = new Map<Buffer, Buffer>([[this.#uuidHeader, Buffer.from(m.uuid)]]);
       for (const [k, v] of Object.entries(m.metadata)) headers.set(Buffer.from(k), Buffer.from(v));
       return {
         topic,
@@ -152,6 +161,8 @@ export interface KafkaSubscriberOptions {
   consumer?: Partial<ConsumerOptions<Bytes, Bytes, Bytes, Bytes>>;
   /** Extra `consume()` options (maxWaitTime, highWaterMark, …). */
   consume?: Partial<ConsumeOptions<Bytes, Bytes, Bytes, Bytes>>;
+  /** Header carrying the message uuid. Default `UUID_HEADER`; `WATERMILL_UUID_HEADER` to read Go Watermill's. */
+  uuidHeader?: string;
   logger?: Logger;
 }
 
@@ -271,7 +282,7 @@ export class KafkaSubscriber implements Subscriber {
     deliver: (msg: Message, deadline?: number | null) => Promise<string>,
     stop: AbortSignal,
   ): Promise<boolean> {
-    let msg = toMessage(record);
+    let msg = toMessage(record, this.#opts.uuidHeader ?? UUID_HEADER);
     for (;;) {
       const r = await deliver(msg, this.#opts.ackDeadlineMs ?? null);
       if (r === 'ack') {
@@ -306,12 +317,12 @@ function infoOf(r: KafkaRecord<Bytes, Bytes, Bytes, Bytes>): KafkaInfo {
   };
 }
 
-function toMessage(r: KafkaRecord<Bytes, Bytes, Bytes, Bytes>): Message {
+function toMessage(r: KafkaRecord<Bytes, Bytes, Bytes, Bytes>, uuidHeader: string): Message {
   const metadata: Record<string, string> = {};
   let uuid: string | undefined;
   for (const [k, v] of r.headers) {
     const key = k.toString();
-    if (key === UUID_HEADER) uuid = v.toString();
+    if (key === uuidHeader) uuid = v.toString();
     else metadata[key] = v?.toString() ?? '';
   }
   // Records not produced by millstream: a deterministic id keeps downstream dedup working.

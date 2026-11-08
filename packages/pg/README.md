@@ -22,7 +22,7 @@ Anything else can implement `SqlDriver` (`query(text, params)` plus `transaction
   (xid8 plus snapshot-xmin watermark). Each message gets its own transaction; Nack rolls back to a savepoint and
   redelivers.
 - `PgQueuePublisher` / `PgQueueSubscriber`: queue type using `FOR UPDATE SKIP LOCKED`. Messages are deleted on ack,
-  processed in parallel and unordered. Honours `_watermill_delayed_until`.
+  processed in parallel and unordered. Honours `_millstream_delayed_until`.
 - `withTransaction(driver, fn)`.
 - `inbox({ consumer })`: transactional dedup.
 - `pgDelayedRequeuer(...)`: retry later without blocking the head of the queue.

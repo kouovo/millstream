@@ -3,7 +3,13 @@ import { MemoryPubSub, Router, newMessage, newUUID } from '@millstream/core';
 import { ForwarderPublisher, addForwarder } from '@millstream/forwarder';
 import { collect, delay, eventually, msgs, payloads, pubSubContract } from '@millstream/test-kit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { KafkaPublisher, KafkaSubscriber, type KafkaSubscriberOptions, kafkaInfo } from '../src/index.js';
+import {
+  KafkaPublisher,
+  KafkaSubscriber,
+  type KafkaSubscriberOptions,
+  WATERMILL_UUID_HEADER,
+  kafkaInfo,
+} from '../src/index.js';
 
 const BROKERS = (process.env.KAFKA_BROKERS ?? 'localhost:59092').split(',');
 const admin = new Admin({ clientId: 'millstream-test', bootstrapBrokers: BROKERS });
@@ -76,6 +82,29 @@ describe('KafkaSubscriber specifics', () => {
     expect(info.topic).toBe(topic);
     expect(info.offset).toBe('0');
     expect(info.key?.toString()).toBe('order-1');
+  });
+
+  it("uuidHeader: interoperates with Go Watermill's `_watermill_message_uuid` header", async () => {
+    const topic = await newTopic();
+    const goStyle = new KafkaPublisher({ bootstrapBrokers: BROKERS, uuidHeader: WATERMILL_UUID_HEADER });
+    const original = newMessage('from-go', { a: 'b' });
+    await goStyle.publish(topic, original);
+    await goStyle.close();
+    const [same] = await collect(
+      new KafkaSubscriber({ bootstrapBrokers: BROKERS, uuidHeader: WATERMILL_UUID_HEADER, ...fast }).subscribe(
+        topic,
+        signal(),
+      ),
+      1,
+    );
+    expect(same!.equals(original)).toBe(true);
+    // A subscriber on the default header does not see a uuid → deterministic fallback, header kept as metadata.
+    const [plain] = await collect(
+      new KafkaSubscriber({ bootstrapBrokers: BROKERS, ...fast }).subscribe(topic, signal()),
+      1,
+    );
+    expect(plain!.uuid).toBe(`kafka:${topic}:0:0`);
+    expect(plain!.metadata[WATERMILL_UUID_HEADER]).toBe(original.uuid);
   });
 
   it('derives a deterministic uuid for records produced outside millstream', async () => {

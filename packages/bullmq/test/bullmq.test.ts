@@ -85,7 +85,7 @@ describe('BullMQ specifics', () => {
     expect(got!.equals(m)).toBe(true);
   });
 
-  it('_watermill_delayed_until becomes a native BullMQ delay', async () => {
+  it('_millstream_delayed_until becomes a native BullMQ delay', async () => {
     const topic = newTopic();
     const t0 = Date.now();
     await publisher.publish(topic, withDelay(newMessage('later'), 400));

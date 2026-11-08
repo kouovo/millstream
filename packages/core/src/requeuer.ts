@@ -19,7 +19,7 @@ export interface RequeuerOptions {
 
 /**
  * Moves due messages from the requeue topic back to their original topic,
- * incrementing `_watermill_requeuer_retries`. A plain Router handler — no new mechanism.
+ * incrementing `_millstream_requeuer_retries`. A plain Router handler — no new mechanism.
  */
 export function addRequeuer(router: Router, opts: RequeuerOptions): Handler {
   const topicOf = opts.generatePublishTopic ?? ((m: Message) => m.metadata[POISON_TOPIC] ?? '');
