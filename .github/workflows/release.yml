@@ -32,15 +32,16 @@ jobs:
       # Pending changesets → opens/updates a "Version Packages" PR.
       # No pending changesets (i.e. that PR was merged) → builds and publishes
       # every package whose version isn't on npm yet, then tags + GitHub releases.
-      - uses: changesets/action@v1
+      # v2 is the action line for @changesets/cli v3 (v1 parses `New tag:` stdout lines
+      # that the v3 CLI no longer prints, so it never pushed tags or created releases).
+      - uses: changesets/action@v2
         with:
-          version: pnpm version-packages
-          publish: pnpm release
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
-          createGithubReleases: true
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          pr-title: 'chore: version packages'
+          commit-message: 'chore: version packages'
+          create-github-releases: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
