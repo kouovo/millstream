@@ -1,6 +1,6 @@
 {
   "name": "@millstream/pg",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "PostgreSQL Pub/Sub for @millstream (node-postgres, postgres.js or Kysely): transactional outbox, xid8-ordered log subscriber, SKIP LOCKED queue, inbox, delayed requeue",
   "keywords": [
     "inbox",

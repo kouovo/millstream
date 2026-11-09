@@ -1,6 +1,6 @@
 {
   "name": "@millstream/otel",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "OpenTelemetry for @millstream: producer/consumer spans, trace context propagation through message metadata, messaging metrics",
   "keywords": [
     "metrics",
