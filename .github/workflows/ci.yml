@@ -62,8 +62,12 @@ jobs:
       MYSQL_URL: mysql://root:mysql@localhost:53306/millstream
       KAFKA_BROKERS: localhost:59092
       REDIS_URL: redis://localhost:56379
+      RABBITMQ_URL: amqp://guest:guest@localhost:55672
+      NATS_URL: localhost:54222
     steps:
       - uses: actions/checkout@v4
+      # Service containers can't take a command (NATS needs `-js`): start these from docker-compose.yml.
+      - run: docker compose up -d --wait rabbitmq nats
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -76,10 +80,10 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  # The shipped dist on every supported Node × the oldest/newest supported PostgreSQL (+ MySQL 8.0, Kafka).
+  # The shipped dist on every supported Node × the oldest/newest supported PostgreSQL (+ MySQL 8.0, Kafka, RabbitMQ, NATS).
   # Plain `node --test`: no TS loader, no vitest — exactly what consumers run.
   node-compat:
-    name: dist on node ${{ matrix.node }} · pg ${{ matrix.postgres }} · kafka
+    name: dist on node ${{ matrix.node }} · pg ${{ matrix.postgres }} · brokers
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -132,8 +136,12 @@ jobs:
       MYSQL_URL: mysql://root:mysql@localhost:53306/millstream
       KAFKA_BROKERS: localhost:59092
       REDIS_URL: redis://localhost:56379
+      RABBITMQ_URL: amqp://guest:guest@localhost:55672
+      NATS_URL: localhost:54222
     steps:
       - uses: actions/checkout@v4
+      # Service containers can't take a command (NATS needs `-js`): start these from docker-compose.yml.
+      - run: docker compose up -d --wait rabbitmq nats
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

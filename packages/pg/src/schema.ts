@@ -16,16 +16,16 @@ export function validateTopic(topic: string): string {
   return topic;
 }
 
-const q = (ident: string) => `"${ident}"`;
+const q = (ident: string): string => `"${ident}"`;
 
 export const tables = {
   /** Log-type message table. */
-  messages: (topic: string) => q(`millstream_${validateTopic(topic)}`),
+  messages: (topic: string): string => q(`millstream_${validateTopic(topic)}`),
   /** Per-consumer-group progress for a log-type topic. */
-  offsets: (topic: string) => q(`millstream_offsets_${validateTopic(topic)}`),
+  offsets: (topic: string): string => q(`millstream_offsets_${validateTopic(topic)}`),
   /** Queue-type (claim + delete) table. */
-  queue: (topic: string) => q(`millstream_queue_${validateTopic(topic)}`),
-  inbox: q('millstream_inbox'),
+  queue: (topic: string): string => q(`millstream_queue_${validateTopic(topic)}`),
+  inbox: q('millstream_inbox') as string,
 };
 
 /** NOTIFY channel for a topic (used as a wake-up hint, never as the source of truth). */

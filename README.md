@@ -6,20 +6,25 @@
 
 Messaging toolkit for Node.js with transactional outbox, ordered PostgreSQL log, Router + middlewares.
 
-| Package                                       | What                                                                                                                       |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [`@millstream/core`](packages/core)           | `Message` (Ack/Nack), `Publisher`/`Subscriber`, `Router` + middlewares / plugins / decorators, in-memory Pub/Sub, requeuer |
-| [`@millstream/pg`](packages/pg)               | PostgreSQL (node-postgres / postgres.js / Kysely): xid8-ordered log, `SKIP LOCKED` queue, outbox, inbox, delayed requeue   |
-| [`@millstream/mysql`](packages/mysql)         | MySQL 8 (mysql2 / Kysely): `SKIP LOCKED` queue, outbox, inbox, delayed requeue                                             |
-| [`@millstream/kafka`](packages/kafka)         | Kafka on `@platformatic/kafka` ≥ 2.3: commit on ack, per-partition ordering and parallelism                                |
-| [`@millstream/bullmq`](packages/bullmq)       | BullMQ (Redis): jobId = uuid dedup, native delays, Nack → redeliver or BullMQ attempts/backoff + failed set                |
-| [`@millstream/cqrs`](packages/cqrs)           | Typed `EventBus` / `EventProcessor`: explicit event names, Standard Schema validation, any transport underneath            |
-| [`@millstream/forwarder`](packages/forwarder) | Outbox forwarder: envelope publisher + relay handler to any broker                                                         |
-| [`@millstream/otel`](packages/otel)           | OpenTelemetry: producer/consumer spans, trace context through message metadata, messaging metrics                          |
-| [`@millstream/test-kit`](packages/test-kit)   | Universal Pub/Sub contract tests (works with vitest, `node:test`, jest…) for your own adapters                             |
+| Package                                                   | What                                                                                                                                      |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@millstream/core`](packages/core)                       | `Message` (Ack/Nack), `Publisher`/`Subscriber`, `Router` + middlewares / plugins / decorators, in-memory Pub/Sub, requeuer                |
+| [`@millstream/pg`](packages/pg)                           | PostgreSQL (node-postgres / postgres.js / Kysely): xid8-ordered log, `SKIP LOCKED` queue, outbox, inbox, delayed requeue                  |
+| [`@millstream/mysql`](packages/mysql)                     | MySQL 8 (mysql2 / Kysely): `SKIP LOCKED` queue, outbox, inbox, delayed requeue                                                            |
+| [`@millstream/kafka`](packages/kafka)                     | Kafka on `@platformatic/kafka` ≥ 2.3: commit on ack, per-partition ordering and parallelism                                               |
+| [`@millstream/bullmq`](packages/bullmq)                   | BullMQ (Redis): jobId = uuid dedup, native delays, Nack → redeliver or BullMQ attempts/backoff + failed set                               |
+| [`@millstream/graphile-worker`](packages/graphile-worker) | Graphile Worker (PostgreSQL jobs): `add_job` inside your transaction, named queues, `run_at` delays, nack → redeliver or Graphile retries |
+| [`@millstream/rabbitmq`](packages/rabbitmq)               | RabbitMQ on `amqplib`: publisher confirms, durable queues, consumer groups via fanout exchanges, requeue or dead-letter                   |
+| [`@millstream/nats`](packages/nats)                       | NATS JetStream: `Nats-Msg-Id` dedup, durable consumers as consumer groups, ack / nak with delay                                           |
+| [`@millstream/redis-stream`](packages/redis-stream)       | Redis Streams on `ioredis`: `XREADGROUP` consumer groups, `XACK` on ack, `XAUTOCLAIM` recovery                                            |
+| [`@millstream/cqrs`](packages/cqrs)                       | Typed `EventBus` / `EventProcessor`: explicit event names, Standard Schema validation, any transport underneath                           |
+| [`@millstream/forwarder`](packages/forwarder)             | Outbox forwarder: envelope publisher + relay handler to any broker                                                                        |
+| [`@millstream/otel`](packages/otel)                       | OpenTelemetry: producer/consumer spans, trace context through message metadata, messaging metrics                                         |
+| [`@millstream/test-kit`](packages/test-kit)               | Universal Pub/Sub contract tests (works with vitest, `node:test`, jest…) for your own adapters                                            |
 
 Requires Node.js ≥ 22, plus PostgreSQL ≥ 13 for `@millstream/pg`, MySQL ≥ 8.0 for `@millstream/mysql`, Kafka ≥ 3.5
-for `@millstream/kafka`, and Redis (BullMQ 5) for `@millstream/bullmq`.
+for `@millstream/kafka`, Redis (BullMQ 5) for `@millstream/bullmq`, Graphile Worker ≥ 0.16 for `@millstream/graphile-worker`, RabbitMQ 3.x / 4.x for `@millstream/rabbitmq`,
+NATS ≥ 2.10 with JetStream for `@millstream/nats`, and Redis ≥ 6.2 for `@millstream/redis-stream`.
 
 ## Quick look
 
@@ -95,9 +100,10 @@ Uses pnpm workspaces, vitest, oxlint + oxfmt, and changesets.
 
 ```sh
 pnpm install
-pnpm db:up            # PostgreSQL 16 :55432, MySQL 8.4 :53306, Redis 7 :56379, Kafka 4.1 (KRaft) :59092 (docker compose)
+pnpm db:up            # PostgreSQL 16 :55432, MySQL 8.4 :53306, Redis 7 :56379, Kafka 4.1 (KRaft) :59092,
+                      # RabbitMQ 4 :55672, NATS 2.11 (JetStream) :54222 (docker compose)
 pnpm check            # fmt:check + lint + typecheck + vitest (runs against src/)
-pnpm build            # tsc → packages/*/dist
+pnpm build            # tsdown (Rolldown) → packages/*/dist
 pnpm test:node        # contract suite on the built dist with plain `node --test`
 ```
 

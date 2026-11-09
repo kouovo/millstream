@@ -70,6 +70,10 @@ await withTransaction(db, async (tx) => {
 - **`processor.group(name, [on(A, …), on(B, …)])`** handles several event types on one subscription, in publish
   order: for example Created → Completed of the same aggregate. All of them must map to the same topic. A failing event
   blocks the group.
+- **`processor.on(E, name, [stepA, stepB])`** runs several handlers for one event in series, on one subscription:
+  each step waits for the previous one, for example update a read model and then notify from it. The first failure
+  fails the message, and a redelivery runs every step again, so keep the steps idempotent. Handlers registered
+  with separate `on` calls run independently instead. `on(E, [...])` works inside a `group` too.
 - **Validation:** payloads are validated on publish (`validate: false` to skip) and on consume. An invalid event on
   the wire becomes a `PermanentError`, so `retry` doesn't retry it and `poisonQueue` / `dropOnError` receive an
   `InvalidEventError`.
