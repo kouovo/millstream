@@ -1,6 +1,6 @@
 {
   "name": "@millstream/bullmq",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "BullMQ (Redis) Publisher/Subscriber for @millstream: jobId dedup, native delays, nack → redeliver or BullMQ attempts/backoff",
   "keywords": [
     "bullmq",
