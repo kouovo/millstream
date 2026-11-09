@@ -17,6 +17,23 @@ import { type EventMarshaler, jsonEventMarshaler } from './marshaler.js';
 
 export type EventHandler<TPayload> = (payload: TPayload, msg: Message) => void | Promise<void>;
 
+/**
+ * One handler, or several run **in series** on the same delivery: each awaits the previous,
+ * the first failure stops the chain and fails the message — so on redelivery the earlier
+ * steps run again (keep them idempotent).
+ */
+export type EventHandlers<TPayload> = EventHandler<TPayload> | ReadonlyArray<EventHandler<TPayload>>;
+
+function serial<P>(handlers: EventHandlers<P>, where: string): EventHandler<P> {
+  if (typeof handlers === 'function') return handlers;
+  if (!handlers.length) throw new Error(`${where}: empty handler list`);
+  if (handlers.length === 1) return handlers[0]!;
+  const list = [...handlers];
+  return async (payload, msg) => {
+    for (const h of list) await h(payload, msg);
+  };
+}
+
 export interface EventProcessorOptions {
   router: Router;
   /**
@@ -55,9 +72,9 @@ interface Route {
   handler: EventHandler<any>;
 }
 
-/** Build a route for `EventProcessor.group`. */
-export function on<E extends AnyEventDefinition>(event: E, handler: EventHandler<EventPayload<E>>): Route {
-  return { event, handler };
+/** Build a route for `EventProcessor.group`. An array of handlers runs in series. */
+export function on<E extends AnyEventDefinition>(event: E, handler: EventHandlers<EventPayload<E>>): Route {
+  return { event, handler: serial(handler, `event "${event.name}"`) };
 }
 
 /**
@@ -79,14 +96,18 @@ export class EventProcessor {
     return this.#opts.topic?.(eventName) ?? eventName;
   }
 
-  /** One handler for one event type. `handlerName` must be unique (and stable: it is the consumer group). */
+  /**
+   * One handler for one event type. `handlerName` must be unique (and stable: it is the consumer group).
+   * Pass an array to run several steps in series on one subscription:
+   * `on(E, 'name', [updateReadModel, notify])` — see `EventHandlers` for the failure semantics.
+   */
   on<E extends AnyEventDefinition>(
     event: E,
     handlerName: string,
-    handler: EventHandler<EventPayload<E>>,
+    handler: EventHandlers<EventPayload<E>>,
     opts: HandlerOptions = {},
   ): Handler {
-    return this.#add(handlerName, [{ event, handler }], opts);
+    return this.#add(handlerName, [{ event, handler: serial(handler, `handler "${handlerName}"`) }], opts);
   }
 
   /**

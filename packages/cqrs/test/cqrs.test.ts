@@ -167,6 +167,54 @@ describe('EventBus + EventProcessor', () => {
     expect(log).toEqual(['created:a', 'completed:a', 'created:b']);
   });
 
+  it('an array of handlers runs in series on one delivery; a failure stops the chain and redelivers', async () => {
+    const { transport, router, bus, start } = setup();
+    const processor = new EventProcessor({
+      router,
+      subscriber: transport,
+      middlewares: [retry({ maxRetries: 1, initialIntervalMs: 1 })],
+    });
+    const log: string[] = [];
+    let failOnce = true;
+    processor.on(TodoCreated, 'pipeline', [
+      async (e) => {
+        expectTypeOf(e.title).toEqualTypeOf<string>();
+        await delay(20); // the next step must wait for this one
+        log.push(`project:${e.todoId}`);
+      },
+      (e) => {
+        if (failOnce) {
+          failOnce = false;
+          throw new Error('boom');
+        }
+        log.push(`notify:${e.todoId}`);
+      },
+    ]);
+    await start();
+    await bus.publish(TodoCreated, { todoId: 'a', title: 'x' });
+    await eventually(() => log.length === 3);
+    // First delivery: step 1 ok, step 2 fails → retried, step 1 runs again.
+    expect(log).toEqual(['project:a', 'project:a', 'notify:a']);
+  });
+
+  it('handler arrays work in groups too, and empty arrays are rejected', async () => {
+    const { bus, processor, start } = setup({ topic: byAggregate });
+    const log: string[] = [];
+    processor.group('todo', [
+      on(TodoCreated, [(e) => void log.push(`a:${e.todoId}`), (e) => void log.push(`b:${e.todoId}`)]),
+      on(TodoCompleted, (e) => void log.push(`c:${e.todoId}`)),
+    ]);
+    expect(() => processor.on(TodoCreated, 'empty', [])).toThrow(/empty handler list/);
+    expect(() => on(TodoCreated, [])).toThrow(/empty handler list/);
+    await start();
+    await bus.publishMany([
+      TodoCreated.of({ todoId: 'x', title: 't' }),
+      TodoCompleted.of({ todoId: 'x', completedAt: new Date() }),
+    ]);
+    await eventually(() => log.length === 3);
+    expect(log).toEqual(['a:x', 'b:x', 'c:x']);
+  });
+
   it('group: rejects events that map to different topics, and duplicates', () => {
     const { processor } = setup();
     expect(() => processor.group('g', [on(TodoCreated, () => {}), on(TodoCompleted, () => {})])).toThrow(
