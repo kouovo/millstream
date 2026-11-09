@@ -1,0 +1,55 @@
+{
+  "name": "@millstream/rabbitmq",
+  "version": "0.0.0",
+  "description": "RabbitMQ (AMQP 0-9-1) Publisher/Subscriber for @millstream on amqplib: publisher confirms, durable queues, consumer groups via fanout exchanges, nack → requeue or dead-letter",
+  "keywords": [
+    "amqp",
+    "messaging",
+    "pubsub",
+    "rabbitmq",
+    "watermill"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kouovo/millstream.git",
+    "directory": "packages/rabbitmq"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@millstream/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@millstream/forwarder": "workspace:^",
+    "@millstream/test-kit": "workspace:^",
+    "amqplib": "~2.2.1"
+  },
+  "peerDependencies": {
+    "amqplib": "^1.2.0 || ^2.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

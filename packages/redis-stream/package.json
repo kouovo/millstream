@@ -1,0 +1,55 @@
+{
+  "name": "@millstream/redis-stream",
+  "version": "0.0.0",
+  "description": "Redis Streams Publisher/Subscriber for @millstream on ioredis: XREADGROUP consumer groups, XACK on ack, XAUTOCLAIM recovery",
+  "keywords": [
+    "messaging",
+    "pubsub",
+    "redis",
+    "redis-streams",
+    "watermill"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kouovo/millstream.git",
+    "directory": "packages/redis-stream"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@millstream/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@millstream/forwarder": "workspace:^",
+    "@millstream/test-kit": "workspace:^",
+    "ioredis": "^5.11.1"
+  },
+  "peerDependencies": {
+    "ioredis": "^5.0.0 || ^6.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

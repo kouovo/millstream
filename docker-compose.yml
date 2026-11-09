@@ -62,3 +62,26 @@ services:
       interval: 2s
       timeout: 10s
       retries: 60
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    network_mode: bridge
+    ports:
+      - '55672:5672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_port_connectivity']
+      interval: 2s
+      timeout: 10s
+      retries: 60
+
+  nats:
+    image: nats:2.11-alpine
+    network_mode: bridge
+    command: ['-js', '-m', '8222']
+    ports:
+      - '54222:4222'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8222/healthz?js-enabled-only=true']
+      interval: 1s
+      timeout: 3s
+      retries: 30
