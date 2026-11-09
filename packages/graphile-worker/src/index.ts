@@ -273,6 +273,8 @@ export class GraphileWorkerSubscriber implements Subscriber {
   readonly #opts: GraphileWorkerSubscriberOptions;
   readonly #logger: Logger;
   readonly #closing = new AbortController();
+  /** Live runners: `close()` waits for them so nothing touches the schema after it resolves. */
+  readonly #running = new Set<Promise<void>>();
 
   constructor(opts: GraphileWorkerSubscriberOptions) {
     if (!opts.pgPool && !opts.connectionString) throw new Error('pgPool or connectionString is required');
@@ -284,13 +286,20 @@ export class GraphileWorkerSubscriber implements Subscriber {
   subscribe(topic: string, signal?: AbortSignal): AsyncIterable<Message> {
     if (this.#closing.signal.aborted) throw new PubSubClosedError('GraphileWorkerSubscriber');
     return producerSubscription(
-      (deliver, stop) => this.#run(topic, deliver, stop),
+      (deliver, stop) => {
+        const p = this.#run(topic, deliver, stop);
+        this.#running.add(p);
+        void p.finally(() => this.#running.delete(p)).catch(() => {});
+        return p;
+      },
       anySignal(signal, this.#closing.signal),
     );
   }
 
+  /** Stops every runner and resolves once they have exited (in-flight jobs are failed and retried later). */
   async close(): Promise<void> {
     this.#closing.abort();
+    await Promise.allSettled(this.#running);
   }
 
   async #run(topic: string, deliver: Deliver, stop: AbortSignal): Promise<void> {
