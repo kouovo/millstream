@@ -48,7 +48,7 @@ export function compose(handler: HandlerFn, middlewares: Middleware[]): HandlerF
 export class Handler {
   readonly #controller = new AbortController();
   #stopping = false;
-  readonly inflight = new Set<Promise<void>>();
+  readonly inflight: Set<Promise<void>> = new Set();
   /** Resolves when the subscription loop has exited and in-flight messages are done. */
   done!: Promise<void>;
 
@@ -112,7 +112,7 @@ export class Router {
   readonly #allStopped = new Promise<void>((r) => (this.#resolveAllStopped = r));
   #resolveRunning!: () => void;
   /** Resolves once every handler has subscribed. */
-  readonly running = new Promise<void>((r) => (this.#resolveRunning = r));
+  readonly running: Promise<void> = new Promise<void>((r) => (this.#resolveRunning = r));
 
   constructor(opts: RouterOptions = {}) {
     this.#closeTimeoutMs = opts.closeTimeoutMs ?? 30_000;

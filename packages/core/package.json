@@ -37,7 +37,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+    "build": "tsdown -c ../../tsdown.config.ts"
   },
   "engines": {
     "node": ">=22"

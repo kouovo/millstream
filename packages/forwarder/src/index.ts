@@ -64,7 +64,7 @@ export function unwrapEnvelope(outer: Message): { destinationTopic: string; mess
 export class ForwarderPublisher implements Publisher {
   constructor(
     private readonly inner: Publisher,
-    private readonly forwarderTopic = DEFAULT_FORWARDER_TOPIC,
+    private readonly forwarderTopic: string = DEFAULT_FORWARDER_TOPIC,
   ) {}
 
   publish(topic: string, ...messages: Message[]): Promise<void> {

@@ -15,12 +15,12 @@ export function validateTopic(topic: string): string {
   return topic;
 }
 
-const q = (ident: string) => `\`${ident}\``;
+const q = (ident: string): string => `\`${ident}\``;
 
 export const tables = {
   /** Queue-type (claim + delete) table. */
-  queue: (topic: string) => q(`millstream_queue_${validateTopic(topic)}`),
-  inbox: q('millstream_inbox'),
+  queue: (topic: string): string => q(`millstream_queue_${validateTopic(topic)}`),
+  inbox: q('millstream_inbox') as string,
 };
 
 /**

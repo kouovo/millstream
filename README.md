@@ -103,7 +103,7 @@ pnpm install
 pnpm db:up            # PostgreSQL 16 :55432, MySQL 8.4 :53306, Redis 7 :56379, Kafka 4.1 (KRaft) :59092,
                       # RabbitMQ 4 :55672, NATS 2.11 (JetStream) :54222 (docker compose)
 pnpm check            # fmt:check + lint + typecheck + vitest (runs against src/)
-pnpm build            # tsc → packages/*/dist
+pnpm build            # tsdown (Rolldown) → packages/*/dist
 pnpm test:node        # contract suite on the built dist with plain `node --test`
 ```
 
