@@ -1,6 +1,6 @@
 {
   "name": "@millstream/mysql",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "MySQL Pub/Sub for @millstream (mysql2 or Kysely): transactional outbox, SKIP LOCKED queue, inbox, delayed requeue",
   "keywords": [
     "inbox",
