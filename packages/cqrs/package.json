@@ -1,6 +1,6 @@
 {
   "name": "@millstream/cqrs",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Typed CQRS EventBus / EventProcessor for @millstream: explicit event names, Standard Schema validation (zod, valibot, …), any Publisher/Subscriber underneath",
   "keywords": [
     "cqrs",

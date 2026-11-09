@@ -1,6 +1,6 @@
 {
   "name": "@millstream/redis-stream",
-  "version": "0.0.0",
+  "version": "0.3.0",
   "description": "Redis Streams Publisher/Subscriber for @millstream on ioredis: XREADGROUP consumer groups, XACK on ack, XAUTOCLAIM recovery",
   "keywords": [
     "messaging",

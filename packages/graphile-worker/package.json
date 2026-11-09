@@ -1,6 +1,6 @@
 {
   "name": "@millstream/graphile-worker",
-  "version": "0.0.0",
+  "version": "0.3.0",
   "description": "Graphile Worker (PostgreSQL job queue) Publisher/Subscriber for @millstream: transactional add_job, job_key dedup, run_at delays, nack → Graphile retries with backoff",
   "keywords": [
     "graphile-worker",

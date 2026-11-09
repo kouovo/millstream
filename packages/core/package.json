@@ -1,6 +1,6 @@
 {
   "name": "@millstream/core",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Watermill-style messaging for TypeScript: Message with Ack/Nack, Publisher/Subscriber, Router + middlewares, in-memory Pub/Sub",
   "keywords": [
     "event-driven",
