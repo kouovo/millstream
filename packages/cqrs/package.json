@@ -1,7 +1,7 @@
 {
   "name": "@millstream/cqrs",
   "version": "0.3.0",
-  "description": "Typed CQRS EventBus / EventProcessor for @millstream: explicit event names, Standard Schema validation (zod, valibot, …), any Publisher/Subscriber underneath",
+  "description": "Typed CQRS for @millstream: EventBus / EventProcessor over any Publisher/Subscriber, plus an in-process Mediator for commands and queries; explicit names, Standard Schema validation (zod, valibot, …)",
   "keywords": [
     "cqrs",
     "domain-events",
@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./mediator": {
+      "types": "./dist/mediator.d.ts",
+      "default": "./dist/mediator.js"
     }
   },
   "publishConfig": {

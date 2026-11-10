@@ -24,3 +24,16 @@ test('EventBus → EventProcessor round trip with Standard Schema validation (di
   await router.close();
   await transport.close();
 });
+
+test('Mediator from the ./mediator entry (dist)', async () => {
+  const { Mediator, InvalidRequestError, defineCommand, defineQuery } = await import('@millstream/cqrs/mediator');
+  const Create = defineCommand('todo.create', z.object({ title: z.string().min(1) }));
+  const Count = defineQuery('todo.count');
+  const titles = [];
+  const m = new Mediator()
+    .handle(Create, ({ title }) => ({ id: String(titles.push(title)) }))
+    .handle(Count, () => titles.length);
+  assert.deepEqual(await m.execute(Create, { title: 'a' }), { id: '1' });
+  assert.equal(await m.query(Count), 1);
+  await assert.rejects(m.execute(Create, { title: '' }), InvalidRequestError);
+});

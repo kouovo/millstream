@@ -28,6 +28,49 @@ processor.on(TodoCompleted, 'notify-owner', async (event, msg) => {
 });
 ```
 
+## Commands and queries: `@millstream/cqrs/mediator`
+
+A separate, in-process entry for plain **synchronous** commands and queries. `execute` / `query` call the one
+registered handler directly and resolve with its result, so the caller gets return values and errors (validation,
+not found, business rules) right away. There's no transport, persistence or retry: it is a typed function call with
+validation and middlewares. Use events (above) for anything that must survive a crash or reach other services.
+
+```ts
+import { Mediator, type MediatorMiddleware, defineCommand, defineQuery } from '@millstream/cqrs/mediator';
+
+export const CreateTodo = defineCommand('todo.create', z.object({ title: z.string().min(1) })).returns<{
+  id: string;
+}>();
+export const GetTodo = defineQuery('todo.get', z.object({ id: z.string() })).returns<Todo | null>();
+export const CountTodos = defineQuery<void, number>('todo.count'); // types only, no runtime validation
+
+// Commands run in a transaction; events published inside it go through the outbox atomically.
+const transaction: MediatorMiddleware = (ctx, next) =>
+  ctx.kind === 'command' ? withTransaction(db, () => next()) : next();
+
+const mediator = new Mediator({ middlewares: [transaction] })
+  .handle(CreateTodo, async ({ title }) => {
+    const id = await todos.insert(title); // via txFromContext()
+    await bus.publish(TodoCreated, { id, title }); // EventBus on PgPublisher(contextExecutor(db))
+    return { id };
+  })
+  .handle(GetTodo, ({ id }) => todos.find(id));
+
+const { id } = await mediator.execute(CreateTodo, { title: 'write docs' });
+const todo = await mediator.query(GetTodo, { id });
+```
+
+- **One handler per name.** Registering a second one throws, and calling a name with no handler rejects with
+  `HandlerNotFoundError`. `execute` takes only commands and `query` only queries, which is checked by the types and at
+  runtime.
+- **Validation** runs before the middlewares and the handler. Invalid input rejects with `InvalidRequestError`
+  (`issues` from your schema library). The handler receives the schema output (`z.coerce.date()` → `Date`).
+  `new Mediator({ validate: false })` skips it.
+- **Middlewares** `(ctx, next) => …` wrap every call, first one outermost. `ctx` has `kind`, `name`, `definition`,
+  the validated `input` and the optional `signal` from `execute(def, input, { signal })`. Use them for transactions,
+  logging, auth or timing.
+- **Results:** `.returns<R>()` declares the result type (types only). Commands default to `void`.
+
 ## The bus is only as reliable as its Publisher
 
 `EventBus` keeps no handler registry. It marshals the event, picks the topic, and calls `publisher.publish`. Pick the
