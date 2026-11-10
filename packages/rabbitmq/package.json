@@ -1,6 +1,6 @@
 {
   "name": "@millstream/rabbitmq",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "RabbitMQ (AMQP 0-9-1) Publisher/Subscriber for @millstream on amqplib: publisher confirms, durable queues, consumer groups via fanout exchanges, nack → requeue or dead-letter",
   "keywords": [
     "amqp",
