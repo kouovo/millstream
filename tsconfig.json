@@ -7,6 +7,7 @@
     "paths": {
       "@millstream/pg/kysely": ["./packages/pg/src/kysely.ts"],
       "@millstream/mysql/kysely": ["./packages/mysql/src/kysely.ts"],
+      "@millstream/cqrs/mediator": ["./packages/cqrs/src/mediator.ts"],
       "@millstream/*": ["./packages/*/src/index.ts"]
     }
   },

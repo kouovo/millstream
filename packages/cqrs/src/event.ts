@@ -1,4 +1,5 @@
 import type { Metadata } from '@millstream/core';
+import { formatIssues, validateWith } from './issues.js';
 import type { InferInput, InferOutput, StandardSchemaIssue, StandardSchemaV1 } from './standard-schema.js';
 
 /**
@@ -54,20 +55,12 @@ export class InvalidEventError extends Error {
     readonly eventName: string,
     readonly issues: ReadonlyArray<StandardSchemaIssue>,
   ) {
-    super(`invalid "${eventName}" event: ${issues.map(formatIssue).join('; ')}`);
+    super(`invalid "${eventName}" event: ${formatIssues(issues)}`);
     this.name = 'InvalidEventError';
   }
 }
 
-function formatIssue(issue: StandardSchemaIssue): string {
-  const path = issue.path?.map((p) => String(typeof p === 'object' ? p.key : p)).join('.');
-  return path ? `${path}: ${issue.message}` : issue.message;
-}
-
 /** Validate (and transform) a value with the event's schema; passthrough without one. */
-export async function parseEvent<TPayload>(event: EventDefinition<TPayload, any>, value: unknown): Promise<TPayload> {
-  if (!event.schema) return value as TPayload;
-  const result = await event.schema['~standard'].validate(value);
-  if (result.issues) throw new InvalidEventError(event.name, result.issues);
-  return result.value;
+export function parseEvent<TPayload>(event: EventDefinition<TPayload, any>, value: unknown): Promise<TPayload> {
+  return validateWith(event.schema, value, (issues) => new InvalidEventError(event.name, issues));
 }
