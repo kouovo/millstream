@@ -1,6 +1,6 @@
 {
   "name": "@millstream/forwarder",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Outbox forwarder for @millstream: envelope publisher + relay handler",
   "keywords": [
     "forwarder",

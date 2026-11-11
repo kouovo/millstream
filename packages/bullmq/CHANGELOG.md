@@ -1,5 +1,12 @@
 # @millstream/bullmq
 
+## 0.5.0
+
+### Patch Changes
+
+- Updated dependencies [a11948b]
+  - @millstream/core@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

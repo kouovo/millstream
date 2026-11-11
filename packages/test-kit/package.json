@@ -1,6 +1,6 @@
 {
   "name": "@millstream/test-kit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Universal Pub/Sub contract tests for @millstream implementations (framework-agnostic)",
   "keywords": [
     "contract-tests",
