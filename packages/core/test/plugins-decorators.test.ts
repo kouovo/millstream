@@ -121,7 +121,7 @@ describe('decorators', () => {
   });
 
   it('a transformed subscription keeps ack identity and synchronous registration', async () => {
-    const ps = new MemoryPubSub();
+    const ps = new MemoryPubSub({ concurrency: 1 }); // ordered: the nacked 'a' comes back before 'b'
     cleanups.push(() => ps.close());
     const decorated = messageTransformSubscriberDecorator(() => {})(ps, { handlerName: 'x', subscribeTopic: 't' });
     const iter = decorated.subscribe('t')[Symbol.asyncIterator]();
