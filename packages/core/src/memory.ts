@@ -1,7 +1,16 @@
 import { handlerContext } from './context.js';
 import type { Message } from './message.js';
 import { type Features, type Publisher, type Subscriber, PubSubClosedError } from './pubsub.js';
-import { AsyncQueue, anySignal, isAbortError, producerSubscription, raceAbort, sleep } from './util.js';
+import {
+  AsyncQueue,
+  type Deliver,
+  Semaphore,
+  anySignal,
+  isAbortError,
+  producerSubscription,
+  raceAbort,
+  sleep,
+} from './util.js';
 
 export interface MemoryPubSubOptions {
   /** Keep every published message and replay it to subscribers that join later. */
@@ -13,6 +22,17 @@ export interface MemoryPubSubOptions {
   blockPublishUntilSubscriberAck?: boolean;
   /** Delay before redelivering a nacked message. Default 0 (Watermill GoChannel: immediate). */
   nackResendMs?: number;
+  /**
+   * Max unacked messages in flight per subscription.
+   * - `Infinity` (default): Watermill GoChannel behaviour, every message is handed out right away and
+   *   waits for its own ack/nack; the consumer (e.g. the Router handler's `concurrency`) is the only limit.
+   * - `1`: ordered, the next message waits for the current ack.
+   *   Pair it with the Router handler's default `concurrency: 1`.
+   * - `N`: at most N unacked at once.
+   *
+   * Above 1 delivery is unordered: a nacked message is redelivered while the others keep flowing.
+   */
+  concurrency?: number;
 }
 
 interface Delivery {
@@ -25,13 +45,14 @@ interface Delivery {
  * In-process Pub/Sub — the counterpart of Watermill's GoChannel.
  *
  * Every subscriber gets its own copy of each message (ack state cannot be shared).
- * Unlike GoChannel's default, delivery is ordered per subscription: the next message
- * is not handed out until the current one is acked; a nack redelivers a fresh copy.
+ * Like GoChannel, delivery is parallel and unordered by default: every message is handed
+ * out right away and a nack redelivers a fresh copy without holding back the others.
+ * Set `concurrency: 1` for ordered delivery (the next message waits for the current ack).
  * Retry limits/backoff are a Router middleware concern, not the transport's.
  */
 export class MemoryPubSub implements Publisher, Subscriber {
   static readonly features: Features = {
-    ordered: true,
+    ordered: false, // default `concurrency: Infinity`; `concurrency: 1` is ordered
     persistent: false,
     consumerGroups: false,
     newSubscriberReceivesOldMessages: false,
@@ -46,6 +67,10 @@ export class MemoryPubSub implements Publisher, Subscriber {
   readonly #delivered = new WeakSet<Message>();
 
   constructor(opts: MemoryPubSubOptions = {}) {
+    const c = opts.concurrency;
+    if (c !== undefined && !(c === Infinity || (Number.isInteger(c) && c >= 1))) {
+      throw new Error('MemoryPubSub concurrency must be an integer >= 1 or Infinity');
+    }
     this.#opts = opts;
   }
 
@@ -88,25 +113,44 @@ export class MemoryPubSub implements Publisher, Subscriber {
     };
     stop.addEventListener('abort', unregister, { once: true });
 
+    // One message until acked (GoChannel's per-message goroutine): nack → resend a fresh copy.
+    const send = async (delivery: Delivery, deliver: Deliver, loopSignal: AbortSignal) => {
+      let msg = delivery.msg;
+      try {
+        for (;;) {
+          this.#delivered.add(msg);
+          const r = await deliver(msg);
+          if (r !== 'nack') return; // acked, or subscription stopping
+          if (this.#opts.nackResendMs) await sleep(this.#opts.nackResendMs, loopSignal);
+          msg = msg.copy();
+        }
+      } catch (error) {
+        if (!isAbortError(error)) throw error;
+      } finally {
+        delivery.done();
+      }
+    };
+
     return producerSubscription(
       async (deliver, loopSignal) => {
-        while (!loopSignal.aborted) {
-          const delivery = await queue.shift(loopSignal);
-          let msg = delivery.msg;
-          for (;;) {
-            this.#delivered.add(msg);
-            const r = await deliver(msg);
-            if (r === 'ack') {
-              delivery.done();
-              break;
-            }
-            if (r !== 'nack') {
-              delivery.done(); // subscription stopping
-              return;
-            }
-            if (this.#opts.nackResendMs) await sleep(this.#opts.nackResendMs, loopSignal);
-            msg = msg.copy();
+        // Up to `concurrency` messages in flight: Infinity (default) = no limit (GoChannel), 1 = ordered.
+        const slots = new Semaphore(this.#opts.concurrency ?? Infinity);
+        const inflight = new Set<Promise<void>>();
+        try {
+          while (!loopSignal.aborted) {
+            await raceAbort(slots.acquire(), loopSignal);
+            const delivery = await queue.shift(loopSignal).catch((error: unknown) => {
+              slots.release();
+              throw error;
+            });
+            const p = send(delivery, deliver, loopSignal).finally(() => {
+              slots.release();
+              inflight.delete(p);
+            });
+            inflight.add(p);
           }
+        } finally {
+          await Promise.allSettled(inflight); // each resolves as soon as `deliver` sees the abort
         }
       },
       stop,
