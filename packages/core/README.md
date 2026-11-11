@@ -9,8 +9,10 @@ Core of [millstream](../../README.md), a Watermill-inspired messaging toolkit fo
   `close()` (stop pulling → drain in-flight → abort).
 - Middlewares: `recoverer`, `retry`, `timeout`, `poisonQueue`, `dropOnError`, `correlationId`, `instantAck`, `throttle`,
   `delayOnError`.
-- `MemoryPubSub` (GoChannel counterpart): ordered, Nack redelivers; `blockPublishUntilSubscriberAck` for a
-  synchronous in-process event bus.
+- `MemoryPubSub` (GoChannel counterpart): parallel and unordered by default, Nack redelivers;
+  `blockPublishUntilSubscriberAck` for a synchronous in-process event bus. `concurrency` picks the delivery mode:
+  `Infinity` (default) hands every message out right away like Watermill GoChannel, so the Router handler's
+  `concurrency` is the only limit; `1` is ordered and serial; `N` caps unacked messages per subscription.
 - `fromPush` (wrap push-style SDKs), `producerSubscription` (for writing
   subscribers), `addRequeuer`.
 - Plugins (`addPlugin`, `signalsHandler`) and decorators (`addPublisherDecorators`, `addSubscriberDecorators`,
